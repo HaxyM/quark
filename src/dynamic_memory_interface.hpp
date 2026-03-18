@@ -1,5 +1,5 @@
-#ifndef QARK_DYNAMIC_MEMORY_INTERFACE
-#define QARK_DYNAMIC_MEMORY_INTERFACE
+#ifndef QUARK_DYNAMIC_MEMORY_INTERFACE
+#define QUARK_DYNAMIC_MEMORY_INTERFACE
 
 #include <cstddef>
 #include <utility> //CHECKME: Used for std :: exchange, check if freestanding implementation available (should be since C++23).

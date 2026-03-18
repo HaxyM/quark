@@ -29,31 +29,43 @@ namespace quark
 
 template <quark :: manipulator Manipulator>
 bool quark :: global_allocator :: transmogrify_allocator() noexcept
-{   
+{
  if (auto* const current_allocator = get_allocator(); current_allocator == nullptr)
  {
   return false;
  }
  else
  {
-  if constexpr (std :: is_nothrow_default_constructible_v<Manipulator>)
+  if (current_allocator->is_formated())
   {
-   if (current_allocator->is_formated())
+   return false;
+  }
+  else
+  {
+   if constexpr (std :: is_nothrow_default_constructible_v<manipulator>)
    {
-    return false;
-   }
-   else
-   {
-    crrent_allocator->~dynamic_memory_interace();
+    current_allocator->~dynamic_memory_interace();
     new (current_allocator) Manipulator();
     is_maniplator_set = true;
     return true;
    }
-  }
-  Manipulator manipulator;
-  if (current_allocator->get_data() == manipulator.get_data())
-  {
-   return true;
+   else if constexpr (std :: is_move_constructible_v<Manipulator> &&
+		   std :: is_nothrow_move_constructible_v<manipulator>)
+   {
+    try
+    {
+     Manipulator manipulator;
+     current_allocator->~dynamic_memory_interace();
+     new (current_allocator) Manipulator(std :: move(manipulator));
+    }
+    catch (...)
+    {
+     return false;
+    }
+    is_maniplator_set = true;
+    return true;
+   }
+   else return false;
   }
  }
 #endif
