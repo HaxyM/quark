@@ -1,7 +1,7 @@
 #ifndef QUARK_GLOBAL_ALLOCATOR
 #define QUARK_GLOBAL_ALLOCATOR
 
-#include "dynamic_memory_interface.hpp
+#include "dynamic_memory_interface.hpp"
 #include "helpers/optional.hpp"
 #include "maniplator.hpp"
 
