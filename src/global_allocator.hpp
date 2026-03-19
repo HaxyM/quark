@@ -14,6 +14,7 @@ namespace quark
  class global_allocator
  {
   public:
+  static bool init_globals() noexcept;
   static bool is_formated() noexcept;
   static bool format_pool(void* mem_pool, std :: size_t pool_size) noexcept;
   static void* allocate(std :: size_t size) noexcept;
@@ -23,7 +24,7 @@ namespace quark
   template <maniplator Manipulator> bool transmogrify_allocator() noexcept;
   private:
   static dynamic_memory_interface* get_allocator() noexcept;
-  static bool is_maniplator_set;
+  static bool& get_is_maniplator_set() noexcept;
  };
 }
 
@@ -46,7 +47,7 @@ bool quark :: global_allocator :: transmogrify_allocator() noexcept
    {
     current_allocator->~dynamic_memory_interace();
     new (current_allocator) Manipulator();
-    is_maniplator_set = true;
+    get_is_maniplator_set() = true;
     return true;
    }
    else if constexpr (std :: is_move_constructible_v<Manipulator> &&
@@ -62,7 +63,7 @@ bool quark :: global_allocator :: transmogrify_allocator() noexcept
     {
      return false;
     }
-    is_maniplator_set = true;
+    get_is_maniplator_set() = true;
     return true;
    }
    else return false;
