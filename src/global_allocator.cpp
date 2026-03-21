@@ -11,7 +11,7 @@ alignas(bool) char is_maniplator_set_buffer[sizeof(bool)];
 bool quark :: global_allocator :: init_globals() noexcept
 {
  //None below should throw any exception.
- new (reinterpret_cast<void*>(allocator_buffer)) quarck :: dynamic_memory_interface();
+ new (reinterpret_cast<void*>(allocator_buffer)) quark :: dynamic_memory_interface();
  new (reinterpret_cast<void*>(is_maniplator_set_buffer)) bool(false);
  return true;
 }

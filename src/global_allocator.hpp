@@ -21,7 +21,7 @@ namespace quark
   static void* allocate(std :: size_t size, std :: align_val_t align) noexcept;
   static bool deallocate(const void* ptr) noexcept;
   static optional<bool> owns_pointer(const void* ptr) noexcept;
-  template <maniplator Manipulator> bool transmogrify_allocator() noexcept;
+  template <manipulator Manipulator> bool transmogrify_allocator() noexcept;
   private:
   static dynamic_memory_interface* get_allocator() noexcept;
   static bool& get_is_maniplator_set() noexcept;
@@ -43,21 +43,21 @@ bool quark :: global_allocator :: transmogrify_allocator() noexcept
   }
   else
   {
-   if constexpr (std :: is_nothrow_default_constructible_v<manipulator>)
+   if constexpr (std :: is_nothrow_default_constructible_v<Manipulator>)
    {
-    current_allocator->~dynamic_memory_interace();
+    current_allocator->~dynamic_memory_interface();
     new (current_allocator) Manipulator();
     get_is_maniplator_set() = true;
     return true;
    }
    else if constexpr (std :: is_move_constructible_v<Manipulator> &&
-		   std :: is_nothrow_move_constructible_v<manipulator>)
+		   std :: is_nothrow_move_constructible_v<Manipulator>)
    {
     try
     {
-     Manipulator manipulator;
-     current_allocator->~dynamic_memory_interace();
-     new (current_allocator) Manipulator(std :: move(manipulator));
+     Manipulator new_manipulator;
+     current_allocator->~dynamic_memory_interface();
+     new (current_allocator) Manipulator(std :: move(new_manipulator));
     }
     catch (...)
     {
@@ -69,4 +69,5 @@ bool quark :: global_allocator :: transmogrify_allocator() noexcept
    else return false;
   }
  }
+}
 #endif
