@@ -4,6 +4,7 @@
 #include <concepts>
 #include <cstddef>
 #include <exception>
+#include <functional>
 #include <initializer_list>
 #include <new>
 #include <type_traits>
@@ -16,29 +17,41 @@ namespace quark
  } nullopt;
 
  template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
  class optional
-  requires (!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: destructible<Type>
  {
   private:
   constexpr const static bool is_optional_of_bool = std :: is_same_v<std :: remove_cv_t<Type>, bool>;
   template <class OtherType>
-  constexpr const static bool is_optional_lvalref_constructible;
+  constexpr static bool get_is_optional_lvalref_constructible() noexcept;
   template <class OtherType>
-  constexpr const static bool is_optional_rvalref_constructible;
+  constexpr const static bool is_optional_lvalref_constructible = get_is_optional_lvalref_constructible<OtherType>();
   template <class OtherType>
-  constexpr const static bool is_generic_concept_constructible;
+  constexpr static bool get_is_optional_rvalref_constructible() noexcept;
   template <class OtherType>
-  constexpr const static bool is_optional_v;
+  constexpr const static bool is_optional_rvalref_constructible = get_is_optional_rvalref_constructible<OtherType>();
+  template <class OtherType>
+  constexpr static bool get_is_generic_concept_constructible() noexcept;
+  template <class OtherType>
+  constexpr const static bool is_generic_concept_constructible = get_is_generic_concept_constructible<OtherType>();
   template <class OtherType> struct is_optional : std :: false_type {};
   template <class OtherType> struct is_optional<optional<OtherType> > : std :: true_type {};
+  template <class OtherType>
+  constexpr const static bool is_optional_v = is_optional <OtherType> :: value;
   constexpr static bool is_nothrow_copy_assignable() noexcept;
   constexpr static bool is_nothrow_move_assignable() noexcept;
   template <class OtherType>
-  constexpr const static bool is_optional_lvalref_assignable;
+  constexpr static bool get_is_optional_lvalref_assignable() noexcept;
   template <class OtherType>
-  constexpr const static bool is_optional_rvalref_assignable;
+  constexpr const static bool is_optional_lvalref_assignable = get_is_optional_lvalref_assignable<OtherType>();
   template <class OtherType>
-  constexpr const static bool is_generic_concept_assignable;
+  constexpr static bool get_is_optional_rvalref_assignable() noexcept;
+  template <class OtherType>
+  constexpr const static bool is_optional_rvalref_assignable = get_is_optional_rvalref_assignable<OtherType>();
+  template <class OtherType>
+  constexpr static bool get_is_generic_concept_assignable() noexcept;
+  template <class OtherType>
+  constexpr const static bool is_generic_concept_assignable = get_is_generic_concept_assignable<OtherType>();
   template <class Self, class Functor>
   constexpr static bool is_and_then_functor() noexcept;
   template <class Self, class Functor>
@@ -81,18 +94,18 @@ namespace quark
   constexpr optional& operator = (const optional& other) noexcept(is_nothrow_copy_assignable())
   requires (std :: is_copy_assignable_v<Type> || std :: is_copy_constructible_v<Type>);
   constexpr optional& operator = (optional&& other) noexcept(is_nothrow_move_assignable())
-  requires (std :: is_move_assignable_v<Type> || std :: is_move_constructible);
+  requires (std :: is_move_assignable_v<Type> || std :: is_move_constructible_v<Type>);
   template <class OtherType>
   constexpr optional& operator = (const optional<OtherType>& other)
-  noexcept (std :: is_nothrow_constructible_v<Type, const OtherType&> && is_nothrow_assignable_v<Type&, const OtherType&>)
+  noexcept (std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, const OtherType&> && std :: is_nothrow_assignable_v<Type&, const OtherType&>)
   requires is_optional_lvalref_assignable<OtherType>;
   template <class OtherType>
   constexpr optional& operator = (optional<OtherType>&& other)
-  noexcept (std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, OtherType> && is_nothrow_assignable_v<Type&, OtherType>)
+  noexcept (std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, OtherType> && std :: is_nothrow_assignable_v<Type&, OtherType>)
   requires is_optional_rvalref_assignable<OtherType>;
   template <class OtherType = std :: remove_cv_t<Type> >
   constexpr optional& operator = (OtherType&& other)
-  noexcept (std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, OtherType> && is_nothrow_assignable_v<Type&, OtherType>)
+  noexcept (std :: is_nothrow_constructible_v<Type, OtherType> && std :: is_nothrow_assignable_v<Type&, OtherType>)
   requires is_generic_concept_assignable<OtherType>;
   // Iterators
   constexpr iterator begin() noexcept;
@@ -118,19 +131,19 @@ namespace quark
   template <class Self, class Functor>
   constexpr auto and_then(this Self&& self, Functor&& func)
   noexcept (std :: is_nothrow_invocable_v<Functor, decltype(std :: forward_like<Self>(std :: declval<Type>()))>)
-  requires is_and_then_functor<Self, Functor>();
+  requires (is_and_then_functor<Self, Functor>());
   template <class Self, class Functor>
   constexpr auto transform(this Self&& self, Functor&& func)
   noexcept (std :: is_nothrow_invocable_v<Functor, decltype(std :: forward_like<Self>(std :: declval<Type>()))>)
-  requires is_transform_functor<Self, Functor>();
+  requires (is_transform_functor<Self, Functor>());
   template <class Self, class Functor>
   constexpr auto or_else(this Self&& self, Functor&& func)
   noexcept (noexcept(std :: forward_like<Self>(std :: declval<Type>())) && std :: is_nothrow_invocable_v<Functor>)
-  requires is_or_else_functor<Self, Functor>();
+  requires (is_or_else_functor<Self, Functor>());
   // Modifiers
   constexpr void swap(optional& other)
-  noexcept(std :: is_nothrow_destructible_v<Type> && is_nothrow_swapable_v<Type> && std :: is_nothrow_move_constructible_v<Type>)
-  requires std :: is_swappable_v<Type> && std :: is_move_constructible_v<Type>;
+  noexcept(std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_swappable_v<Type> && std :: is_nothrow_move_constructible_v<Type>)
+  requires(std :: is_swappable_v<Type> && std :: is_move_constructible_v<Type>);
   constexpr void reset() noexcept(std :: is_nothrow_destructible_v<Type>);
   template <class ... Args>
   constexpr Type& emplace(Args&& ... args)
@@ -156,45 +169,51 @@ namespace quark
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
-inline constexpr const bool quark :: optional <Type> :: is_optional_lvalref_constructible
-= std :: is_constructible_v<Type, const OtherType&>
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, quark :: optional<OtherType>&>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, const quark :: optional<OtherType>&>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, quark :: optional<OtherType>&&>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, const quark :: optional<OtherType>&&>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<quark :: optional<OtherType>&, Type>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<const quark :: optional<OtherType>&, Type>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<quark :: optional<OtherType>&&, Type>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<const quark :: optional<OtherType>&&, Type>);
+inline constexpr bool quark :: optional <Type> :: get_is_optional_lvalref_constructible() noexcept
+{
+ return std :: is_constructible_v<Type, const OtherType&>
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, quark :: optional<OtherType>&>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, const quark :: optional<OtherType>&>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, quark :: optional<OtherType>&&>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, const quark :: optional<OtherType>&&>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<quark :: optional<OtherType>&, Type>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<const quark :: optional<OtherType>&, Type>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<quark :: optional<OtherType>&&, Type>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<const quark :: optional<OtherType>&&, Type>);
+}
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
-inline constexpr const bool quark :: optional <Type> :: is_optional_rvalref_constructible
-= std :: is_constructible_v<Type, OtherType>
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, quark :: optional<OtherType>&>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, const quark :: optional<OtherType>&>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, quark :: optional<OtherType>&&>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, const quark :: optional<OtherType>&&>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<quark :: optional<OtherType>&, Type>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<const quark :: optional<OtherType>&, Type>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<quark :: optional<OtherType>&&, Type>)
-&& (qark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<const quark :: optional<OtherType>&&, Type>);
+inline constexpr bool quark :: optional <Type> :: get_is_optional_rvalref_constructible() noexcept
+{
+ return std :: is_constructible_v<Type, OtherType>
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, quark :: optional<OtherType>&>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, const quark :: optional<OtherType>&>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, quark :: optional<OtherType>&&>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_constructible_v<Type, const quark :: optional<OtherType>&&>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<quark :: optional<OtherType>&, Type>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<const quark :: optional<OtherType>&, Type>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<quark :: optional<OtherType>&&, Type>)
+ && (quark :: optional <Type> :: is_optional_of_bool || !std :: is_convertible_v<const quark :: optional<OtherType>&&, Type>);
+}
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
-inline constexpr const bool quark :: optional <Type> :: is_generic_concept_constructible
-= std :: is_constructible_v<Type, OtherType>
-&& !std :: is_same_v<std :: remove_cvref_t<OtherType>, std :: in_place_t>
-&& !std :: is_same_v<std :: remove_cvref_t<OtherType>, quark :: optional<Type> >
-&& !(std :: is_same_v<std :: remove_cv_t<OtherType>, bool> && qark :: optional <Type> :: is_optional_v<std :: remove_cvref_t<OtherType> >);
+inline constexpr bool quark :: optional <Type> :: get_is_generic_concept_constructible() noexcept
+{
+ return std :: is_constructible_v<Type, OtherType>
+ && !std :: is_same_v<std :: remove_cvref_t<OtherType>, std :: in_place_t>
+ && !std :: is_same_v<std :: remove_cvref_t<OtherType>, quark :: optional<Type> >
+ && !(std :: is_same_v<std :: remove_cv_t<OtherType>, bool>
+ && quark :: optional <Type> :: template is_optional_v<std :: remove_cvref_t<OtherType> >);
+}
 
 template <class Type>
-template <class OtherType>
-inline constexpr const bool quark :: optional <Type> :: is_optional_v
-= quark :: optional <Type> :: is_optional<OtherType> :: value;
-
-template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr bool quark :: optional <Type> :: is_nothrow_copy_assignable() noexcept
 {
  if constexpr (std :: is_copy_assignable_v<Type>)
@@ -209,6 +228,7 @@ inline constexpr bool quark :: optional <Type> :: is_nothrow_copy_assignable() n
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr bool quark :: optional <Type> :: is_nothrow_move_assignable() noexcept
 {
  if constexpr (std :: is_move_assignable_v<Type>)
@@ -223,47 +243,57 @@ inline constexpr bool quark :: optional <Type> :: is_nothrow_move_assignable() n
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
-inline constexpr const bool quark :: optional <Type> :: is_optional_lvalref_assignable
-= std :: is_constructible_v<Type, const OtherType&> && std :: is_assignable_v<Type&, const OtherType&>
-&& !std :: is_constructible_v<Type, quark :: optional<OtherType>&>
-&& !std :: is_constructible_v<Type, const quark :: optional<OtherType>&>
-&& !std :: is_constructible_v<Type, quark :: optional<OtherType>&&>
-&& !std :: is_constructible_v<Type, const quark :: optional<OtherType>&&>
-&& !std :: is_convertible_v<quark :: optional<OtherType>&, Type>
-&& !std :: is_convertible_v<const quark :: optional<OtherType>&, Type>
-&& !std :: is_convertible_v<quark :: optional<OtherType>&&, Type>
-&& !std :: is_convertible_v<const quark :: optional<OtherType>&&, Type>
-&& !std :: is_assignable_v<Type&, quark :: optional<OtherType>&>
-&& !std :: is_assignable_v<Type&, const quark :: optional<OtherType>&>
-&& !std :: is_assignable_v<Type&, quark :: optional<OtherType>&&>
-&& !std :: is_assignable_v<Type&, const quark :: optional<OtherType>&&>;
+inline constexpr bool quark :: optional <Type> :: get_is_optional_lvalref_assignable() noexcept
+{
+ return  std :: is_constructible_v<Type, const OtherType&> && std :: is_assignable_v<Type&, const OtherType&>
+ && !std :: is_constructible_v<Type, quark :: optional<OtherType>&>
+ && !std :: is_constructible_v<Type, const quark :: optional<OtherType>&>
+ && !std :: is_constructible_v<Type, quark :: optional<OtherType>&&>
+ && !std :: is_constructible_v<Type, const quark :: optional<OtherType>&&>
+ && !std :: is_convertible_v<quark :: optional<OtherType>&, Type>
+ && !std :: is_convertible_v<const quark :: optional<OtherType>&, Type>
+ && !std :: is_convertible_v<quark :: optional<OtherType>&&, Type>
+ && !std :: is_convertible_v<const quark :: optional<OtherType>&&, Type>
+ && !std :: is_assignable_v<Type&, quark :: optional<OtherType>&>
+ && !std :: is_assignable_v<Type&, const quark :: optional<OtherType>&>
+ && !std :: is_assignable_v<Type&, quark :: optional<OtherType>&&>
+ && !std :: is_assignable_v<Type&, const quark :: optional<OtherType>&&>;
+}
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
-inline constexpr const bool quark :: optional <Type> :: is_optional_rvalref_assignable
-= std :: is_constructible_v<Type, OtherType> && std :: is_assignable_v<Type&, OtherType>
-&& !std :: is_constructible_v<Type, quark :: optional<OtherType>&>
-&& !std :: is_constructible_v<Type, const quark :: optional<OtherType>&>
-&& !std :: is_constructible_v<Type, quark :: optional<OtherType>&&>
-&& !std :: is_constructible_v<Type, const quark :: optional<OtherType>&&>
-&& !std :: is_convertible_v<quark :: optional<OtherType>&, Type>
-&& !std :: is_convertible_v<const quark :: optional<OtherType>&, Type>
-&& !std :: is_convertible_v<quark :: optional<OtherType>&&, Type>
-&& !std :: is_convertible_v<const quark :: optional<OtherType>&&, Type>
-&& !std :: is_assignable_v<Type&, quark :: optional<OtherType>&>
-&& !std :: is_assignable_v<Type&, const quark :: optional<OtherType>&>
-&& !std :: is_assignable_v<Type&, quark :: optional<OtherType>&&>
-&& !std :: is_assignable_v<Type&, const quark :: optional<OtherType>&&>;
+inline constexpr bool quark :: optional <Type> :: get_is_optional_rvalref_assignable() noexcept
+{
+ return std :: is_constructible_v<Type, OtherType> && std :: is_assignable_v<Type&, OtherType>
+ && !std :: is_constructible_v<Type, quark :: optional<OtherType>&>
+ && !std :: is_constructible_v<Type, const quark :: optional<OtherType>&>
+ && !std :: is_constructible_v<Type, quark :: optional<OtherType>&&>
+ && !std :: is_constructible_v<Type, const quark :: optional<OtherType>&&>
+ && !std :: is_convertible_v<quark :: optional<OtherType>&, Type>
+ && !std :: is_convertible_v<const quark :: optional<OtherType>&, Type>
+ && !std :: is_convertible_v<quark :: optional<OtherType>&&, Type>
+ && !std :: is_convertible_v<const quark :: optional<OtherType>&&, Type>
+ && !std :: is_assignable_v<Type&, quark :: optional<OtherType>&>
+ && !std :: is_assignable_v<Type&, const quark :: optional<OtherType>&>
+ && !std :: is_assignable_v<Type&, quark :: optional<OtherType>&&>
+ && !std :: is_assignable_v<Type&, const quark :: optional<OtherType>&&>;
+}
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
-inline constexpr const bool quark :: optional <Type> :: is_generic_concept_assignable
-= std :: is_constructible_v<Type, OtherType> && std :: is_assignable_v<Type&, OtherType>
-&& !std :: is_same_v<std :: remove_cvref_t<OtherType>, quark :: optional<Type> >
-&& !(std :: is_scalar_v<Type> && std :: is_same_v<std :: decay_t<OtherType>, Type>);
+inline constexpr bool quark :: optional <Type> :: get_is_generic_concept_assignable() noexcept
+{
+ return std :: is_constructible_v<Type, OtherType> && std :: is_assignable_v<Type&, OtherType>
+ && !std :: is_same_v<std :: remove_cvref_t<OtherType>, quark :: optional<Type> >
+ && !(std :: is_scalar_v<Type> && std :: is_same_v<std :: decay_t<OtherType>, Type>);
+}
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class Self, class Functor>
 inline constexpr bool quark :: optional <Type> :: is_and_then_functor() noexcept
 {
@@ -280,6 +310,7 @@ inline constexpr bool quark :: optional <Type> :: is_and_then_functor() noexcept
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class Self, class Functor>
 inline constexpr bool quark :: optional <Type> :: is_transform_functor() noexcept
 {
@@ -291,12 +322,13 @@ inline constexpr bool quark :: optional <Type> :: is_transform_functor() noexcep
  else
  { 
   using return_type = std :: invoke_result_t<Functor, arg_type>;
-  return !(std :: is_same_v<std :: remove_cvref_t<return_type> >, std :: in_place_t>
-  || std :: is_same_v<std :: remove_cvref_t<return_type> >, quark :: nullopt_t>);
+  return !(std :: is_same_v<std :: remove_cvref_t<return_type>, std :: in_place_t>
+  || std :: is_same_v<std :: remove_cvref_t<return_type>, quark :: nullopt_t>);
  }
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class Self, class Functor>
 inline constexpr bool quark :: optional <Type> :: is_or_else_functor() noexcept
 {
@@ -306,30 +338,38 @@ inline constexpr bool quark :: optional <Type> :: is_or_else_functor() noexcept
  }
  else
  {
-  using return_type = std :: rmove_cvref_t<std :: invoke_result_t<Functor> >;
+  using return_type = std :: remove_cvref_t<std :: invoke_result_t<Functor> >;
   return std :: is_same_v<quark :: optional<Type>, return_type>;
  }
 }
 
 // Constructors
-template <class Type> constexpr inline quark :: optional <Type> :: optional() noexcept
+template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
+constexpr inline quark :: optional <Type> :: optional() noexcept
 : stored(nullptr)
 {
 }
 
-template <class Type> constexpr inline quark :: optional <Type> :: optional(quark :: nullopt_t) noexcept
+template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
+constexpr inline quark :: optional <Type> :: optional(quark :: nullopt_t) noexcept
 : stored(nullptr)
 {
 }
 
-template <class Type> constexpr inline quark :: optional <Type> :: optional(const optional& other)
+template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
+constexpr inline quark :: optional <Type> :: optional(const optional& other)
 noexcept(std :: is_nothrow_copy_constructible_v<Type>)
 requires std :: copy_constructible<Type>
 {
  stored = ((other.stored != nullptr) ? new (storage) Type(*(other.stored)) : nullptr);
 }
 
-template <class Type> constexpr inline quark :: optional <Type> :: optional(optional&& other)
+template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
+constexpr inline quark :: optional <Type> :: optional(optional&& other)
 noexcept(std :: is_nothrow_move_constructible_v<Type>)
 requires std :: move_constructible<Type>
 {
@@ -337,15 +377,17 @@ requires std :: move_constructible<Type>
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
 inline constexpr quark :: optional <Type> :: optional(const optional<OtherType>& other)
 noexcept (std :: is_nothrow_constructible_v<Type, const OtherType&>)
-requires is_optional_lvalref_constrctible<OtherType>
+requires is_optional_lvalref_constructible<OtherType>
 {
  stored = ((other.stored != nullptr) ? new (storage) Type(*(other.sored)) : nullptr);
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
 inline constexpr quark :: optional <Type> :: optional(optional<OtherType>&& other)
 noexcept (std :: is_nothrow_constructible_v<Type, OtherType&&>)
@@ -357,6 +399,7 @@ requires is_optional_rvalref_constructible<OtherType>
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class ... Args>
 inline constexpr quark :: optional <Type> :: optional(std :: in_place_t, Args&& ... args)
 noexcept(std :: is_nothrow_constructible_v<Type, Args&&...>)
@@ -366,6 +409,7 @@ requires std :: constructible_from<Type, Args&&...>
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class U, class ... Args>
 inline constexpr quark :: optional <Type> :: optional(std :: in_place_t, std :: initializer_list<U> il, Args&& ... args)
 noexcept(std :: is_nothrow_constructible_v<Type, std :: initializer_list<U>&, Args&&...>)
@@ -375,6 +419,7 @@ requires std :: constructible_from<Type, std :: initializer_list<U>&, Args&&...>
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
 inline constexpr quark :: optional <Type> :: optional(OtherType&& value)
 noexcept(std :: is_nothrow_constructible_v<Type, OtherType>)
@@ -384,7 +429,9 @@ requires is_generic_concept_constructible<OtherType>
 }
 
 // Destructor
-template <class Type> inline constexpr quark :: optional <Type> :: ~optional() noexcept(std :: is_nothrow_destructible_v<Type>)
+template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
+inline constexpr quark :: optional <Type> :: ~optional() noexcept(std :: is_nothrow_destructible_v<Type>)
 {
  if constexpr (!std :: is_trivially_destructible_v<Type>)
  {
@@ -394,7 +441,9 @@ template <class Type> inline constexpr quark :: optional <Type> :: ~optional() n
 
 // Assignment operators
 template <class Type>
-inline constexpr quark :: optional <Type> :: optional& quark :: optional <Type> :: operator = (quark :: nullopt_t)
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
+inline constexpr quark :: optional<Type>&
+	quark :: optional <Type> :: operator = (quark :: nullopt_t)
 noexcept(std :: is_nothrow_destructible_v<Type>)
 {
  reset();
@@ -402,9 +451,11 @@ noexcept(std :: is_nothrow_destructible_v<Type>)
 }
 
 template <class Type>
-inline constexpr quark :: optional <Type> :: optional& quark :: optional <Type> :: operator = (const optional& other)
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
+inline constexpr quark :: optional<Type>&
+	quark :: optional <Type> :: operator = (const quark :: optional<Type>& other)
 noexcept(is_nothrow_copy_assignable())
-requires (std :: is_copy_assignable_v<Type> || std :: is_copy_constructible_v<Type>)
+requires(std :: is_copy_assignable_v<Type> || std :: is_copy_constructible_v<Type>)
 {//FIXME: Fix assigns!
  if (this != &other)
  {
@@ -431,8 +482,11 @@ requires (std :: is_copy_assignable_v<Type> || std :: is_copy_constructible_v<Ty
 }
 
 template <class Type>
-inline constexpr quark :: optional <Type> :: optional& quark :: optional <Type> :: operator = (optional&& other)
-noexcept(is_nothrow_copy_assignable())
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
+inline constexpr quark :: optional<Type>&
+	quark :: optional <Type> :: operator = (quark :: optional<Type>&& other)
+noexcept(is_nothrow_move_assignable())
+requires(std :: is_move_assignable_v<Type> || std :: is_move_constructible_v<Type>)
 {//FIXME: Fix assigns!
  if (this != &other)
  {
@@ -459,9 +513,11 @@ noexcept(is_nothrow_copy_assignable())
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
-inline constexpr quark :: optional <Type> :: optional& quark :: optional <Type> :: operator = (const quark :: optional<OtherType>& other)
-noexcept (std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, const OtherType&> && is_nothrow_assignable_v<Type&, const OtherType&>)
+inline constexpr quark :: optional <Type> :: optional&
+	quark :: optional <Type> :: operator = (const quark :: optional<OtherType>& other)
+noexcept(std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, const OtherType&> && std :: is_nothrow_assignable_v<Type&, const OtherType&>)
 requires is_optional_lvalref_assignable<OtherType>
 {
  if (other.stored == nullptr)
@@ -480,9 +536,10 @@ requires is_optional_lvalref_assignable<OtherType>
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
 inline constexpr quark :: optional <Type> :: optional& quark :: optional <Type> :: operator = (quark :: optional<OtherType>&& other)
-noexcept (std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, OtherType> && is_nothrow_assignable_v<Type&, OtherType>)
+noexcept (std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, OtherType> && std :: is_nothrow_assignable_v<Type&, OtherType>)
 requires is_optional_rvalref_assignable<OtherType>
 {
  if (other.stored == nullptr)
@@ -501,9 +558,11 @@ requires is_optional_rvalref_assignable<OtherType>
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
-inline constexpr quark :: optional <Type> :: optional& quark :: optional <Type> :: operator = (OtherType&& other)
-noexcept (std :: is_nothrow_constructible_v<Type, OtherType> && is_nothrow_assignable_v<Type&, OtherType>)
+inline constexpr quark :: optional <Type> :: optional&
+	quark :: optional <Type> :: operator = (OtherType&& other)
+noexcept (std :: is_nothrow_constructible_v<Type, OtherType> && std :: is_nothrow_assignable_v<Type&, OtherType>)
 requires is_generic_concept_assignable<OtherType>
 {
  if (stored != nullptr)
@@ -519,24 +578,28 @@ requires is_generic_concept_assignable<OtherType>
 
 // Iterators
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr typename quark :: optional <Type> :: iterator quark :: optional <Type> :: begin() noexcept
 {
  return stored;
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr typename quark :: optional <Type> :: const_iterator quark :: optional <Type> :: begin() const noexcept
 {
  return stored;
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr typename quark :: optional <Type> :: iterator quark :: optional <Type> :: end() noexcept
 {
  return (stored == nullptr) ? nullptr : (stored + 1zu);
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr typename quark :: optional <Type> :: const_iterator quark :: optional <Type> :: end() const noexcept
 {
  return (stored == nullptr) ? nullptr : (stored + 1zu);
@@ -544,36 +607,42 @@ inline constexpr typename quark :: optional <Type> :: const_iterator quark :: op
 
 // Observers
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr const Type* quark :: optional <Type> :: operator -> () const noexcept
 {
  return stored;
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr Type* quark :: optional <Type> :: operator -> () noexcept
 {
  return stored;
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr auto&& quark :: optional <Type> :: operator * (this auto&& self) noexcept
 {
  return std :: forward_like<decltype(self)>(*(self.stored));
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr quark :: optional <Type> :: operator bool () const noexcept
 {
  return (stored != nullptr);
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr bool quark :: optional <Type> :: has_value() const noexcept
 {
  return (stored != nullptr);
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr auto&& quark :: optional <Type> :: value(this auto&& self)
 {
  if (self.stored == nullptr)
@@ -584,6 +653,7 @@ inline constexpr auto&& quark :: optional <Type> :: value(this auto&& self)
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
 inline constexpr Type quark :: optional <Type> :: value_or(OtherType&& default_value) const &
 noexcept(std :: is_nothrow_copy_constructible_v<Type> && std :: is_nothrow_convertible_v<OtherType&&, Type>)
@@ -600,6 +670,7 @@ requires std :: copy_constructible<Type> && std :: convertible_to<OtherType&&, T
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType>
 inline constexpr Type quark :: optional <Type> :: value_or(OtherType&& default_value) &&
 noexcept(std :: is_nothrow_move_constructible_v<Type> && std :: is_nothrow_convertible_v<OtherType&&, Type>)
@@ -616,14 +687,15 @@ requires std :: move_constructible<Type> && std :: convertible_to<OtherType&&, T
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class Self, class Functor>
 inline constexpr auto quark :: optional <Type> :: and_then(this Self&& self, Functor&& func)
-noexcept (std :: is_nothrow_invocable_v<Functor, decltype(std :: forward_like<Self>(std :: declval<Type>()))>)
-requires quark :: optional <Type> :: is_and_then_functor<Self, Functor>()
+noexcept(std :: is_nothrow_invocable_v<Functor, decltype(std :: forward_like<Self>(std :: declval<Type>()))>)
+requires(/*quark :: optional <Type> :: */is_and_then_functor<Self, Functor>())
 {
- if (stored != nullptr)
+ if (self.stored != nullptr)
  {
-  return std :: invoke(std :: forward<Functor>(func), *std :: forward_like<Self>(stored));
+  return std :: invoke(std :: forward<Functor>(func), *std :: forward_like<Self>(self.stored));
  }
  else
  {
@@ -634,17 +706,18 @@ requires quark :: optional <Type> :: is_and_then_functor<Self, Functor>()
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class Self, class Functor>
 inline constexpr auto quark :: optional <Type> :: transform(this Self&& self, Functor&& func)
-noexcept (std :: is_nothrow_invocable_v<Functor, decltype(std :: forward_like<Self>(std :: declval<Type>()))>)
-requires quark :: optional <Type> :: is_transform_functor<Self, Functor>()
+noexcept(std :: is_nothrow_invocable_v<Functor, decltype(std :: forward_like<Self>(std :: declval<Type>()))>)
+requires(/*quark :: optional <Type> :: */is_transform_functor<Self, Functor>())
 {
  using arg_type = decltype(std :: forward_like<Self>(std :: declval<Type>()));
  using return_type = std :: remove_cvref_t<std :: invoke_result_t<Functor, arg_type> >;
- if (stored != nullptr)
+ if (self.stored != nullptr)
  {
   return quark :: optional<return_type>(std :: in_place,
-    std :: invoke(std :: forward<Functor>(func), *std :: forward_like<Self>(stored)));
+    std :: invoke(std :: forward<Functor>(func), *std :: forward_like<Self>(self.stored)));
  }
  else
  {
@@ -653,12 +726,13 @@ requires quark :: optional <Type> :: is_transform_functor<Self, Functor>()
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class Self, class Functor>
 inline constexpr auto quark :: optional <Type> :: or_else(this Self&& self, Functor&& func)
-noexcept (noexcept(std :: forward_like<Self>(std :: declval<Type>())) && std :: is_nothrow_invocable_v<Functor>)
-requires quark :: optional <Type> :: is_or_else_functor<Self, Functor>()
+noexcept(noexcept(std :: forward_like<Self>(std :: declval<Type>())) && std :: is_nothrow_invocable_v<Functor>)
+requires(/*quark :: optional <Type> :: */is_or_else_functor<Self, Functor>())
 {
- if (stored != nullptr)
+ if (self.stored != nullptr)
  {
   return std :: forward<Self>(self);
  }
@@ -669,9 +743,10 @@ requires quark :: optional <Type> :: is_or_else_functor<Self, Functor>()
 }
 
 template <class Type>
-inline constexpr void quark :: optional <Type> :: swap(optional& other)
-noexcept(std :: is_nothrow_destructible_v<Type> && is_nothrow_swapable_v<Type> && std :: is_nothrow_move_constructible_v<Type>)
-requires std :: is_swappable_v<Type> && std :: is_move_constructible_v<Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
+inline constexpr void quark :: optional <Type> :: swap(quark :: optional<Type>& other)
+noexcept(std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_swappable_v<Type> && std :: is_nothrow_move_constructible_v<Type>)
+requires(std :: is_swappable_v<Type> && std :: is_move_constructible_v<Type>)
 {
  if (stored != nullptr && other.stored != nullptr)
  {
@@ -691,6 +766,7 @@ requires std :: is_swappable_v<Type> && std :: is_move_constructible_v<Type>
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 inline constexpr void quark :: optional <Type> :: reset() noexcept(std :: is_nothrow_destructible_v<Type>)
 {
  if (stored != nullptr)
@@ -704,6 +780,7 @@ inline constexpr void quark :: optional <Type> :: reset() noexcept(std :: is_not
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class ... Args>
 inline constexpr Type& quark :: optional <Type> :: emplace(Args&& ... args)
 noexcept(std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, Args&&...>)
@@ -715,6 +792,7 @@ requires std :: constructible_from<Type, Args&&...>
 }
 
 template <class Type>
+  requires ((!std :: is_reference_v<Type>) && (!std :: is_void_v<Type>) && std :: is_destructible_v<Type>)
 template <class OtherType, class ... Args>
 inline constexpr Type& quark :: optional <Type> :: emplace(std :: initializer_list<OtherType> ilist, Args&& ... args)
 noexcept(std :: is_nothrow_destructible_v<Type> && std :: is_nothrow_constructible_v<Type, std :: initializer_list<OtherType>&, Args&&...>)
