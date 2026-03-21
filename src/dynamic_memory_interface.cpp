@@ -55,7 +55,7 @@ bool quark :: dynamic_memory_interface :: deallocate(const void* ptr) const noex
 
 quark :: optional<bool> quark :: dynamic_memory_interface :: owns_pointer(const void* ptr) const noexcept
 {
- return {std :: in_place, false};
+ return quark :: optional<bool>{std :: in_place, false};
 }
 
 void* quark :: dynamic_memory_interface :: get_data() const noexcept
@@ -68,7 +68,7 @@ quark :: dynamic_memory_interface :: min_size_for(void* data, std :: size_t expe
 {
  if (expected_allign == std :: align_val_t(1)) //No alignment required
  {
-  return {std :: in_place, expected_size};
+  return quark :: optional<std :: size_t>{std :: in_place, expected_size};
  }  
  else if ((data != nullptr) && (expected_size > 0zu)) //Alignment required 
  {
@@ -78,7 +78,7 @@ quark :: dynamic_memory_interface :: min_size_for(void* data, std :: size_t expe
   const auto adjustment = (misalignment == 0zu) ? 0zu : static_cast<std :: size_t>(align - misalignment);
   if (expected_size <= (std :: numeric_limits <std :: size_t> :: max() - adjustment))
   {
-   return {std :: in_place, expected_size + adjustment};
+   return quark :: optional<std :: size_t>{std :: in_place, expected_size + adjustment};
   }
  }
  return quark :: nullopt;
